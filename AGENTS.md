@@ -23,6 +23,6 @@ Copy `.env.example` to `.env` to start.
 
 ## Conventions
 - Entry: `src/main.tsx` → `src/App.tsx` (React Router v7 routes)
-- Primary color: `#1D7B43` (green), hover `#155f32` — see `src/lib/colors.ts`
+- Primary color: `#1D7B43` (green), hover `#155f32` (hardcoded in components; `src/lib/colors.ts` is stale/unused)
 - Changing ficha status triggers Supabase Function `resend-email` automatically
 - React 19 + TypeScript ~6 — uses `react-dom/client` `createRoot`, not legacy `ReactDOM.render`

@@ -17,10 +17,6 @@ export default function Dashboard() {
     totalInscripcion: 0,
   })
 
-  useEffect(() => {
-    loadStats()
-  }, [])
-
   const loadStats = async () => {
     const [
       { count: totalAdmision },
@@ -42,57 +38,62 @@ export default function Dashboard() {
     })
   }
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadStats()
+  }, [])
+
   const cards = [
     {
       title: 'Total Fichas Admisión',
       value: stats.totalAdmision,
       icon: FileText,
-      color: '[#1D7B43]',
       bgColor: 'bg-green-50',
-      textColor: 'text-[#1D7B43]',
+      textColor: 'text-primary',
+      iconColor: 'text-primary',
     },
     {
       title: 'Pendientes',
       value: stats.pendientesAdmision,
       icon: Clock,
-      color: 'yellow',
       bgColor: 'bg-yellow-50',
       textColor: 'text-yellow-600',
+      iconColor: 'text-yellow-600',
     },
     {
       title: 'Aprobadas',
       value: stats.aprobadasAdmision,
       icon: CheckCircle,
-      color: 'green',
       bgColor: 'bg-green-50',
-      textColor: 'text-green-600',
+      textColor: 'text-primary',
+      iconColor: 'text-primary',
     },
     {
       title: 'Inscripciones',
       value: stats.totalInscripcion,
       icon: Users,
-      color: '[#1D7B43]',
       bgColor: 'bg-green-50',
-      textColor: 'text-[#1D7B43]',
+      textColor: 'text-primary',
+      iconColor: 'text-primary',
     },
   ]
 
   return (
     <div>
       <div className="mb-8">
-        <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-gray-600 mt-1">Resumen general del sistema</p>
+        <h2 className="text-3xl font-bold text-[#0F172A]">Dashboard</h2>
+        <p className="text-[#64748B] mt-1">Resumen general del sistema</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {cards.map((card) => (
-          <div key={card.title} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition">
+          <div key={card.title} className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] p-6 hover:shadow-md hover:border-[#E2E8F0] transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">{card.title}</p>
+                <p className="text-sm font-medium text-[#64748B]">{card.title}</p>
                 <p className={`text-4xl font-bold ${card.textColor} mt-2`}>{card.value}</p>
               </div>
               <div className={`${card.bgColor} p-3 rounded-xl`}>
-                <card.icon className={card.textColor} size={24} />
+                <card.icon className={card.iconColor} size={24} />
               </div>
             </div>
           </div>

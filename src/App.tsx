@@ -9,7 +9,7 @@ import FichaDetalle from './pages/FichaDetalle'
 import Layout from './components/Layout'
 
 function AppContent() {
-  const [session, setSession] = useState<any>(null)
+  const [session, setSession] = useState<null | { user?: { id?: string } }>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
