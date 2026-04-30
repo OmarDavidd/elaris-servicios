@@ -1,61 +1,66 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import type { FichaAdmision, FichaStatus } from '../types'
-import { Search } from 'lucide-react'
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { supabase } from "../lib/supabase";
+import type { FichaAdmision, FichaStatus } from "../types";
+import { Search } from "lucide-react";
 
 export default function FichasAdmision() {
-  const [fichas, setFichas] = useState<FichaAdmision[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [fichas, setFichas] = useState<FichaAdmision[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const FILTERS = [
-    { value: '', label: 'Todas' },
-    { value: 'registrado', label: 'Registrado' },
-    { value: 'en_revision', label: 'En revisión' },
-    { value: 'aprobada', label: 'Aprobada' },
-    { value: 'rechazada', label: 'Rechazada' },
-  ] as const
+    { value: "", label: "Todas" },
+    { value: "registrado", label: "Registrado" },
+    { value: "en_revision", label: "En revisión" },
+    { value: "aprobada", label: "Aprobada" },
+    { value: "rechazada", label: "Rechazada" },
+  ] as const;
 
   useEffect(() => {
-    loadFichas()
-  }, [])
+    loadFichas();
+  }, []);
+
+  type RawFichaAlumno = {
+    id_persona: string;
+    curp: string;
+    sexo: string | null;
+    correo: string | null;
+    persona:
+      | {
+          nombre: string;
+          apellido_paterno: string | null;
+          apellido_materno: string | null;
+          fecha_nacimiento: string | null;
+          telefono: string | null;
+        }[]
+      | null;
+  };
 
   type RawFicha = {
-    id_ficha: string
-    id_alumno: string
-    id_carrera: string
-    fecha_registro: string
-    estado: FichaStatus
-    alumno: {
-      id_persona: string
-      curp: string
-      sexo: string | null
-      correo: string | null
-      persona: {
-        nombre: string
-        apellido_paterno: string | null
-        apellido_materno: string | null
-        fecha_nacimiento: string | null
-        telefono: string | null
-      } | null
-    } | null
-    carrera: {
-      nombre: string
-    } | null
-    examen_admision: {
-      resultado: string | null
-      calificacion: number | null
-    }[] | null
-  }
+    id_ficha: string;
+    id_alumno: string;
+    id_carrera: string;
+    fecha_registro: string;
+    estado: FichaStatus;
+    alumno: RawFichaAlumno[] | null;
+    carrera: { nombre: string }[] | null;
+    examen_admision:
+      | {
+          resultado: string | null;
+          calificacion: number | null;
+        }[]
+      | null;
+  };
 
   const loadFichas = async () => {
     try {
-      setLoading(true)
+      setLoading(true);
       const { data, error } = await supabase
-        .from('ficha')
-        .select(`
+        .from("ficha")
+        .select(
+          `
           id_ficha,
           id_alumno,
           id_carrera,
@@ -76,73 +81,90 @@ export default function FichasAdmision() {
           ),
           carrera:carrera (nombre),
           examen_admision:examen_admision (resultado, calificacion)
-        `)
-        .order('fecha_registro', { ascending: false })
+        `,
+        )
+        .order("fecha_registro", { ascending: false });
 
       if (error) {
-        console.error('Error loading fichas:', error.message)
-        setFichas([])
-        return
+        console.error("Error loading fichas:", error.message);
+        setFichas([]);
+        return;
       }
 
       if (!data || data.length === 0) {
-        setFichas([])
-        return
+        setFichas([]);
+        return;
       }
 
       const mapped: FichaAdmision[] = data.map((raw: RawFicha) => {
-        const alumno = raw.alumno
-        const persona = alumno?.persona
-        const examen = Array.isArray(raw.examen_admision) ? raw.examen_admision[0] : raw.examen_admision
+        const alumno = Array.isArray(raw.alumno) ? raw.alumno[0] : raw.alumno;
+        const persona = alumno?.persona;
+        const personaData = Array.isArray(persona) ? persona[0] : persona;
+        const examen = Array.isArray(raw.examen_admision)
+          ? raw.examen_admision[0]
+          : raw.examen_admision;
+        const carreraData = Array.isArray(raw.carrera)
+          ? raw.carrera[0]
+          : raw.carrera;
 
         return {
           id_ficha: raw.id_ficha,
           id_alumno: raw.id_alumno,
-          id_persona: alumno?.id_persona || '',
+          id_persona: alumno?.id_persona || "",
           id_carrera: raw.id_carrera,
           fecha_registro: raw.fecha_registro,
           estado: raw.estado,
           persona: {
-            nombre: persona?.nombre || '',
-            apellido_paterno: persona?.apellido_paterno ?? null,
-            apellido_materno: persona?.apellido_materno ?? null,
-            curp: alumno?.curp || '',
-            telefono: persona?.telefono ?? null,
-            fecha_nacimiento: persona?.fecha_nacimiento ?? null,
+            nombre: personaData?.nombre || "",
+            apellido_paterno: personaData?.apellido_paterno ?? null,
+            apellido_materno: personaData?.apellido_materno ?? null,
+            curp: alumno?.curp || "",
+            telefono: personaData?.telefono ?? null,
+            fecha_nacimiento: personaData?.fecha_nacimiento ?? null,
             sexo: alumno?.sexo ?? null,
             correo: alumno?.correo ?? null,
           },
-          carrera: raw.carrera ?? { nombre: '' },
-          examen_admision: examen ? { resultado: examen.resultado ?? null, calificacion: examen.calificacion ?? null } : null,
-        }
-      })
+          carrera: carreraData ?? { nombre: "" },
+          examen_admision: examen
+            ? {
+                resultado: examen.resultado ?? null,
+                calificacion: examen.calificacion ?? null,
+              }
+            : null,
+        };
+      });
 
-      setFichas(mapped)
+      setFichas(mapped);
     } catch (err) {
-      console.error('Error:', err)
+      console.error("Error:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const updateStatus = async (id: string, newStatus: string) => {
+    type RawFichaDetailAlumno = {
+      correo: string | null;
+      persona:
+        | {
+            nombre: string | null;
+            apellido_paterno: string | null;
+            apellido_materno: string | null;
+          }[]
+        | null;
+    };
+
     type RawFichaDetail = {
-      id_ficha: string
-      estado: FichaStatus
-      alumno: {
-        correo: string | null
-        persona: {
-          nombre: string | null
-          apellido_paterno: string | null
-          apellido_materno: string | null
-        } | null
-      } | null
-    }
+      id_ficha: string;
+      estado: FichaStatus;
+      alumno: RawFichaDetailAlumno[] | null;
+    };
 
     // Get ficha details first
     const { data: fichaData, error: fichaError } = await supabase
-      .from('ficha')
-      .select(`
+      .from("ficha")
+      .select(
+        `
         id_ficha,
         estado,
         alumno:alumno (
@@ -153,54 +175,64 @@ export default function FichasAdmision() {
             apellido_materno
           )
         )
-      `)
-      .eq('id_ficha', id)
-      .single()
+      `,
+      )
+      .eq("id_ficha", id)
+      .single();
 
     if (fichaError || !fichaData) {
-      console.error('Error getting ficha:', fichaError)
-      return
+      console.error("Error getting ficha:", fichaError);
+      return;
     }
 
     // Update status
     const { error } = await supabase
-      .from('ficha')
+      .from("ficha")
       .update({ estado: newStatus })
-      .eq('id_ficha', id)
+      .eq("id_ficha", id);
 
     if (error) {
-      console.error('Error updating status:', error)
-      return
+      console.error("Error updating status:", error);
+      return;
     }
 
-    const typedFicha = fichaData as RawFichaDetail
-    const email = typedFicha.alumno?.correo || null
+    const typedFicha = fichaData as RawFichaDetail;
+    const alumnoData = Array.isArray(typedFicha.alumno)
+      ? typedFicha.alumno[0]
+      : typedFicha.alumno;
+    const email = alumnoData?.correo || null;
     if (!email) {
-      console.log('No email found for alumno')
-      loadFichas()
-      return
+      console.log("No email found for alumno");
+      loadFichas();
+      return;
     }
 
     // Send email notification
-    const persona = typedFicha.alumno?.persona
-    const fullName = `${persona?.nombre || ''} ${persona?.apellido_paterno || ''} ${persona?.apellido_materno || ''}`.trim()
-    
-    const statusMessages: Record<string, { subject: string; message: string }> = {
-      'en_revision': {
-        subject: 'Ficha en revisión - Elaris',
-        message: 'Tu ficha de admisión ha sido recibida y está siendo revisada.'
-      },
-      'aprobada': {
-        subject: 'Ficha aprobada - Elaris',
-        message: '¡Felicidades! Tu ficha de admisión ha sido aprobada. Te contactaremos pronto con los siguientes pasos.'
-      },
-      'rechazada': {
-        subject: 'Ficha rechazada - Elaris',
-        message: 'Lamentamos informarte que tu ficha de admisión ha sido rechazada. Por favor contacta al departamento de servicios escolares para más información.'
-      }
-    }
+    const personaArr = alumnoData?.persona;
+    const persona = Array.isArray(personaArr) ? personaArr[0] : personaArr;
+    const fullName =
+      `${persona?.nombre || ""} ${persona?.apellido_paterno || ""} ${persona?.apellido_materno || ""}`.trim();
 
-    const statusInfo = statusMessages[newStatus]
+    const statusMessages: Record<string, { subject: string; message: string }> =
+      {
+        en_revision: {
+          subject: "Ficha en revisión - Elaris",
+          message:
+            "Tu ficha de admisión ha sido recibida y está siendo revisada.",
+        },
+        aprobada: {
+          subject: "Ficha aprobada - Elaris",
+          message:
+            "¡Felicidades! Tu ficha de admisión ha sido aprobada. Te contactaremos pronto con los siguientes pasos.",
+        },
+        rechazada: {
+          subject: "Ficha rechazada - Elaris",
+          message:
+            "Lamentamos informarte que tu ficha de admisión ha sido rechazada. Por favor contacta al departamento de servicios escolares para más información.",
+        },
+      };
+
+    const statusInfo = statusMessages[newStatus];
     if (statusInfo) {
       const html = `
         <h2>Actualización de tu ficha de admisión</h2>
@@ -210,49 +242,57 @@ export default function FichasAdmision() {
         <br/>
         <p>Atentamente,</p>
         <p>Departamento de Servicios Escolares</p>
-      `
+      `;
 
       try {
-        await supabase.functions.invoke('resend-email', {
+        await supabase.functions.invoke("resend-email", {
           body: {
-            to: email,
+            to: "teddiazdiaz019@gmail.com",
             subject: statusInfo.subject,
             html,
           },
-        })
+        });
       } catch (err) {
-        console.error('Error sending email:', err)
+        console.error("Error sending email:", err);
       }
     }
 
-    loadFichas()
-  }
+    loadFichas();
+  };
 
   const filtered = fichas.filter((f) => {
-    const searchLower = search.toLowerCase()
+    const searchLower = search.toLowerCase();
     const matchesSearch =
       !search ||
       f.persona.nombre.toLowerCase().includes(searchLower) ||
-      (f.persona.apellido_paterno?.toLowerCase() || '').includes(searchLower) ||
-      f.persona.curp.toLowerCase().includes(searchLower)
-    const matchesStatus = !statusFilter || f.estado === statusFilter
-    return matchesSearch && matchesStatus
-  })
+      (f.persona.apellido_paterno?.toLowerCase() || "").includes(searchLower) ||
+      f.persona.curp.toLowerCase().includes(searchLower);
+    const matchesStatus = !statusFilter || f.estado === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
-  const statusCounts: Record<string, number> = fichas.reduce((acc, ficha) => {
-    acc[ficha.estado] = (acc[ficha.estado] ?? 0) + 1
-    return acc
-  }, {} as Record<string, number>)
+  const statusCounts: Record<string, number> = fichas.reduce(
+    (acc, ficha) => {
+      acc[ficha.estado] = (acc[ficha.estado] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'registrado': return 'bg-yellow-100 text-yellow-800'
-      case 'en_revision': return 'bg-blue-100 text-blue-800'
-      case 'aprobada': return 'bg-green-100 text-green-800'
-      case 'rechazada': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case "registrado":
+        return "bg-yellow-100 text-yellow-800";
+      case "en_revision":
+        return "bg-blue-100 text-blue-800";
+      case "aprobada":
+        return "bg-green-100 text-green-800";
+      case "rechazada":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
-  }
+  };
 
   return (
     <div>
@@ -260,7 +300,7 @@ export default function FichasAdmision() {
         <h2 className="text-3xl font-bold text-black">Fichas de Admisión</h2>
         <p className="text-gray-600 mt-1">Gestiona las fichas de admisión</p>
       </div>
-      
+
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <div className="flex gap-4 mb-6">
           <div className="flex-1 relative">
@@ -277,25 +317,32 @@ export default function FichasAdmision() {
 
         <div className="flex flex-wrap gap-2 mb-8">
           {FILTERS.map((filter) => {
-            const isActive = statusFilter === filter.value
-            const baseClasses = 'px-4 py-2 rounded-full text-sm font-medium border transition-colors'
-            const activeClasses = 'bg-[#1D7B43] border-[#1D7B43] text-white shadow-sm'
-            const inactiveClasses = 'border-gray-200 text-gray-600 hover:border-[#1D7B43] hover:text-[#1D7B43]'
-            const count = filter.value ? statusCounts[filter.value] || 0 : fichas.length
+            const isActive = statusFilter === filter.value;
+            const baseClasses =
+              "px-4 py-2 rounded-full text-sm font-medium border transition-colors";
+            const activeClasses =
+              "bg-[#1D7B43] border-[#1D7B43] text-white shadow-sm";
+            const inactiveClasses =
+              "border-gray-200 text-gray-600 hover:border-[#1D7B43] hover:text-[#1D7B43]";
+            const count = filter.value
+              ? statusCounts[filter.value] || 0
+              : fichas.length;
 
             return (
               <button
-                key={filter.value || 'all'}
+                key={filter.value || "all"}
                 type="button"
                 onClick={() => setStatusFilter(filter.value)}
                 className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses}`}
               >
                 {filter.label}
-                <span className={`ml-2 inline-flex min-w-[1.75rem] justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                <span
+                  className={`ml-2 inline-flex min-w-[1.75rem] justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${isActive ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}
+                >
                   {count}
                 </span>
               </button>
-            )
+            );
           })}
         </div>
 
@@ -307,32 +354,63 @@ export default function FichasAdmision() {
         ) : (
           <>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-medium text-gray-600">Total: <span className="text-[#1D7B43] font-bold">{filtered.length}</span> fichas</p>
+              <p className="text-sm font-medium text-gray-600">
+                Total:{" "}
+                <span className="text-[#1D7B43] font-bold">
+                  {filtered.length}
+                </span>{" "}
+                fichas
+              </p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b-2 border-gray-100">
-                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Nombre</th>
-                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">CURP</th>
-                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Carrera</th>
-                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Fecha</th>
-                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Estado</th>
-                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Acciones</th>
+                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Nombre
+                    </th>
+                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      CURP
+                    </th>
+                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Carrera
+                    </th>
+                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Fecha
+                    </th>
+                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Estado
+                    </th>
+                    <th className="text-left p-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Acciones
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((f) => (
-                    <tr key={f.id_ficha} className="border-b border-gray-50 hover:bg-green-50/30 transition">
+                    <tr
+                      key={f.id_ficha}
+                      className="border-b border-gray-50 hover:bg-green-50/30 transition"
+                    >
                       <td className="p-4">
-                        <div className="font-medium text-gray-900">{f.persona.nombre} {f.persona.apellido_paterno}</div>
-                        <div className="text-xs text-gray-500">{f.persona.apellido_materno}</div>
+                        <div className="font-medium text-gray-900">
+                          {f.persona.nombre} {f.persona.apellido_paterno}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {f.persona.apellido_materno}
+                        </div>
                       </td>
-                      <td className="p-4 text-gray-600 font-mono text-xs">{f.persona.curp}</td>
+                      <td className="p-4 text-gray-600 font-mono text-xs">
+                        {f.persona.curp}
+                      </td>
                       <td className="p-4 text-gray-700">{f.carrera?.nombre}</td>
-                      <td className="p-4 text-gray-600">{new Date(f.fecha_registro).toLocaleDateString()}</td>
+                      <td className="p-4 text-gray-600">
+                        {new Date(f.fecha_registro).toLocaleDateString()}
+                      </td>
                       <td className="p-4">
-                        <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(f.estado)}`}>
+                        <span
+                          className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(f.estado)}`}
+                        >
                           {f.estado}
                         </span>
                       </td>
@@ -346,7 +424,9 @@ export default function FichasAdmision() {
                           </Link>
                           <select
                             value={f.estado}
-                            onChange={(e) => updateStatus(f.id_ficha, e.target.value)}
+                            onChange={(e) =>
+                              updateStatus(f.id_ficha, e.target.value)
+                            }
                             className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#1D7B43] bg-white"
                           >
                             <option value="registrado">registrado</option>
@@ -365,5 +445,5 @@ export default function FichasAdmision() {
         )}
       </div>
     </div>
-  )
+  );
 }

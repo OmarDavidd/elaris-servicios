@@ -13,6 +13,18 @@ export default function FichasInscripcion() {
     loadFichas()
   }, [])
 
+  type RawInscripcionAlumno = {
+    id_persona: string
+    sexo: string | null
+    correo: string | null
+    persona: {
+      nombre: string
+      apellido_paterno: string | null
+      apellido_materno: string | null
+      telefono: string | null
+    }[] | null
+  }
+
   type RawInscripcion = {
     id: string
     id_alumno: string
@@ -20,17 +32,7 @@ export default function FichasInscripcion() {
     folio_acta_nacimiento: string
     registrar_responsable: boolean
     id_responsable: string | null
-    alumno: {
-      id_persona: string
-      sexo: string | null
-      correo: string | null
-      persona: {
-        nombre: string
-        apellido_paterno: string | null
-        apellido_materno: string | null
-        telefono: string | null
-      } | null
-    } | null
+    alumno: RawInscripcionAlumno[] | null
     inscripcion_escolaridad: {
       nivel: string
       nombre_institucion: string
@@ -83,8 +85,9 @@ export default function FichasInscripcion() {
       }
 
       const mapped: FichaInscripcion[] = data.map((raw: RawInscripcion) => {
-        const alumno = raw.alumno
-        const persona = alumno?.persona
+        const alumno = Array.isArray(raw.alumno) ? raw.alumno[0] : raw.alumno
+        const personaArr = alumno?.persona
+        const persona = Array.isArray(personaArr) ? personaArr[0] : personaArr
         const escolaridad = Array.isArray(raw.inscripcion_escolaridad) ? raw.inscripcion_escolaridad : []
 
         return {

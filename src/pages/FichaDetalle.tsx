@@ -19,22 +19,6 @@ export default function FichaDetalle() {
     if (id) loadDetalle()
   }, [id, type, inscripcionId])
 
-  type RawAlumno = {
-    id_alumno: string
-    id_persona: string
-    curp: string
-    sexo: string | null
-    correo: string | null
-    persona: {
-      id_persona: string
-      nombre: string
-      apellido_paterno: string | null
-      apellido_materno: string | null
-      fecha_nacimiento: string | null
-      telefono: string | null
-    } | null
-  }
-
   type RawResponsable = {
     parentesco: string | null
     persona: {
@@ -42,7 +26,7 @@ export default function FichaDetalle() {
       apellido_paterno: string | null
       apellido_materno: string | null
       telefono: string | null
-    } | null
+    }[] | null
   }
 
   type InscripcionRecord = {
@@ -65,7 +49,7 @@ export default function FichaDetalle() {
     id_escolaridad: string
     promedio: number
     anio_egreso: number | null
-    escuela: { nombre: string | null; tipo: string | null } | null
+    escuela: { nombre: string | null; tipo: string | null }[] | null
   }
 
   type InscripcionEscolaridadRecord = {
@@ -78,8 +62,8 @@ export default function FichaDetalle() {
     url_certificado: string | null
   }
 
-  type EnfermedadRecord = { enfermedad: { nombre: string | null } | null }
-  type LenguaRecord = { lengua: { nombre: string | null } | null }
+  type EnfermedadRecord = { enfermedad: { nombre: string | null }[] | null }
+  type LenguaRecord = { lengua: { nombre: string | null }[] | null }
   type InfoMedicaRecord = { tipo_sangre: string | null; alergias: string | null }
 
   const loadDetalle = async () => {
@@ -197,15 +181,17 @@ export default function FichaDetalle() {
 
       const { data: responsableData } = await responsableDataPromise
 
+      const alumnoPersona = Array.isArray(alumnoData.persona) ? alumnoData.persona[0] : alumnoData.persona
+
       setPersona({
         id_alumno: alumnoData.id_alumno,
         id_persona: alumnoData.id_persona,
-        nombre: alumnoData.persona?.nombre || '',
-        apellido_paterno: alumnoData.persona?.apellido_paterno ?? null,
-        apellido_materno: alumnoData.persona?.apellido_materno ?? null,
-        fecha_nacimiento: alumnoData.persona?.fecha_nacimiento ?? null,
+        nombre: alumnoPersona?.nombre || '',
+        apellido_paterno: alumnoPersona?.apellido_paterno ?? null,
+        apellido_materno: alumnoPersona?.apellido_materno ?? null,
+        fecha_nacimiento: alumnoPersona?.fecha_nacimiento ?? null,
         sexo: alumnoData.sexo ?? null,
-        telefono: alumnoData.persona?.telefono ?? null,
+        telefono: alumnoPersona?.telefono ?? null,
         curp: alumnoData.curp || inscripcionData?.curp || '',
         email: alumnoData.correo ?? null,
         info_medica: infoMedica
@@ -215,27 +201,39 @@ export default function FichaDetalle() {
           }
           : null,
         enfermedades: enfermedades
-          .map((registro) => registro.enfermedad?.nombre)
+          .map((registro) => {
+            const enf = Array.isArray(registro.enfermedad) ? registro.enfermedad[0] : registro.enfermedad
+            return enf?.nombre
+          })
           .filter((nombre): nombre is string => Boolean(nombre)),
         lenguas: lenguas
-          .map((registro) => registro.lengua?.nombre)
+          .map((registro) => {
+            const len = Array.isArray(registro.lengua) ? registro.lengua[0] : registro.lengua
+            return len?.nombre
+          })
           .filter((nombre): nombre is string => Boolean(nombre)),
         responsable: responsableData
-          ? {
-            nombre: `${responsableData.persona?.nombre || ''} ${responsableData.persona?.apellido_paterno || ''} ${responsableData.persona?.apellido_materno || ''}`.trim(),
-            telefono: responsableData.persona?.telefono ?? null,
-            parentesco: responsableData.parentesco,
-          }
+          ? (() => {
+            const respPersona = Array.isArray(responsableData.persona) ? responsableData.persona[0] : responsableData.persona
+            return {
+              nombre: `${respPersona?.nombre || ''} ${respPersona?.apellido_paterno || ''} ${respPersona?.apellido_materno || ''}`.trim(),
+              telefono: respPersona?.telefono ?? null,
+              parentesco: responsableData.parentesco,
+            }
+          })()
           : null,
-        escolaridad: escolaridades.map((escolaridad) => ({
-          id_escolaridad: escolaridad.id_escolaridad,
-          promedio: escolaridad.promedio,
-          anio_egreso: escolaridad.anio_egreso ?? null,
-          escuela: {
-            nombre: escolaridad.escuela?.nombre || '',
-            tipo: escolaridad.escuela?.tipo || '',
-          },
-        })),
+        escolaridad: escolaridades.map((escolaridad) => {
+          const escuelaData = Array.isArray(escolaridad.escuela) ? escolaridad.escuela[0] : escolaridad.escuela
+          return {
+            id_escolaridad: escolaridad.id_escolaridad,
+            promedio: escolaridad.promedio,
+            anio_egreso: escolaridad.anio_egreso ?? null,
+            escuela: {
+              nombre: escuelaData?.nombre || '',
+              tipo: escuelaData?.tipo || '',
+            },
+          }
+        }),
         inscripcion_escolaridad: inscripcionEscolaridad.map((item) => ({
           nivel: item.nivel,
           nombre_institucion: item.nombre_institucion,
