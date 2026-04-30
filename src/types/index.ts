@@ -2,6 +2,7 @@ export type FichaStatus = 'registrado' | 'en_revision' | 'aprobada' | 'rechazada
 
 export interface FichaAdmision {
   id_ficha: string
+  id_alumno: string
   id_persona: string
   id_carrera: string
   fecha_registro: string
@@ -14,6 +15,7 @@ export interface FichaAdmision {
     telefono: string | null
     fecha_nacimiento: string | null
     sexo: string | null
+    correo: string | null
   }
   carrera: { nombre: string }
   examen_admision: { resultado: string | null; calificacion: number | null } | null
@@ -21,7 +23,9 @@ export interface FichaAdmision {
 
 export interface FichaInscripcion {
   id: string
+  id_alumno: string
   id_persona: string
+  id_responsable: string | null
   curp: string
   folio_acta_nacimiento: string
   registrar_responsable: boolean
@@ -30,6 +34,8 @@ export interface FichaInscripcion {
     apellido_paterno: string | null
     apellido_materno: string | null
     telefono: string | null
+    correo: string | null
+    sexo: string | null
   } | null
   escolaridad: {
     nivel: string
@@ -41,12 +47,13 @@ export interface FichaInscripcion {
 
 export interface Documento {
   id_documento: string
-  id_persona: string
+  id_alumno: string
   tipo: string
   url_archivo: string
 }
 
 export interface PersonaDetalle {
+  id_alumno: string
   id_persona: string
   nombre: string
   apellido_paterno: string | null
@@ -83,8 +90,10 @@ export interface PersonaDetalle {
     url_certificado: string | null
   }[]
   inscripcionData: {
+    id: string
     curp: string
     folio_acta_nacimiento: string
     registrar_responsable: boolean
+    id_responsable: string | null
   } | null
 }

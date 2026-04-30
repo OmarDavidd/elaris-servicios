@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import type { FichaAdmision } from '../types'
+import type { FichaAdmision, FichaStatus } from '../types'
 import { Search } from 'lucide-react'
 
 export default function FichasAdmision() {
@@ -10,71 +10,110 @@ export default function FichasAdmision() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
 
+  const FILTERS = [
+    { value: '', label: 'Todas' },
+    { value: 'registrado', label: 'Registrado' },
+    { value: 'en_revision', label: 'En revisión' },
+    { value: 'aprobada', label: 'Aprobada' },
+    { value: 'rechazada', label: 'Rechazada' },
+  ] as const
+
   useEffect(() => {
     loadFichas()
   }, [])
 
+  type RawFicha = {
+    id_ficha: string
+    id_alumno: string
+    id_carrera: string
+    fecha_registro: string
+    estado: FichaStatus
+    alumno: {
+      id_persona: string
+      curp: string
+      sexo: string | null
+      correo: string | null
+      persona: {
+        nombre: string
+        apellido_paterno: string | null
+        apellido_materno: string | null
+        fecha_nacimiento: string | null
+        telefono: string | null
+      } | null
+    } | null
+    carrera: {
+      nombre: string
+    } | null
+    examen_admision: {
+      resultado: string | null
+      calificacion: number | null
+    }[] | null
+  }
+
   const loadFichas = async () => {
     try {
       setLoading(true)
-      
-      // Get fichas first
-      const { data: fichasData, error: fichasError } = await supabase
+      const { data, error } = await supabase
         .from('ficha')
-        .select('id_ficha, id_persona, fecha_registro, estado, id_carrera')
+        .select(`
+          id_ficha,
+          id_alumno,
+          id_carrera,
+          fecha_registro,
+          estado,
+          alumno:alumno (
+            id_persona,
+            curp,
+            sexo,
+            correo,
+            persona:persona (
+              nombre,
+              apellido_paterno,
+              apellido_materno,
+              fecha_nacimiento,
+              telefono
+            )
+          ),
+          carrera:carrera (nombre),
+          examen_admision:examen_admision (resultado, calificacion)
+        `)
         .order('fecha_registro', { ascending: false })
 
-      if (fichasError) {
-        console.error('Error loading fichas:', fichasError.message)
-        setLoading(false)
-        return
-      }
-
-      if (!fichasData || fichasData.length === 0) {
+      if (error) {
+        console.error('Error loading fichas:', error.message)
         setFichas([])
-        setLoading(false)
         return
       }
 
-      // Get all related data
-      const personaIds = [...new Set(fichasData.map(f => f.id_persona).filter(Boolean))]
-      
-      const [
-        { data: personasData },
-        { data: carrerasData },
-        { data: documentosData },
-        { data: examenesData },
-      ] = await Promise.all([
-        supabase.from('persona').select('id_persona, nombre, apellido_paterno, apellido_materno, telefono, fecha_nacimiento, sexo').in('id_persona', personaIds),
-        supabase.from('carrera').select('id_carrera, nombre'),
-        supabase.from('documento').select('id_persona, tipo, url_archivo').in('id_persona', personaIds).eq('tipo', 'curp_text'),
-        supabase.from('examen_admision').select('id_ficha, resultado, calificacion').in('id_ficha', fichasData.map(f => f.id_ficha)),
-      ])
+      if (!data || data.length === 0) {
+        setFichas([])
+        return
+      }
 
-      const personasMap = new Map((personasData || []).map(p => [p.id_persona, p]))
-      const carrerasMap = new Map((carrerasData || []).map(c => [c.id_carrera, c]))
-      const curpMap = new Map((documentosData || []).map(d => [d.id_persona, d.url_archivo]))
-      const examenesMap = new Map((examenesData || []).map(e => [e.id_ficha, e]))
+      const mapped: FichaAdmision[] = data.map((raw: RawFicha) => {
+        const alumno = raw.alumno
+        const persona = alumno?.persona
+        const examen = Array.isArray(raw.examen_admision) ? raw.examen_admision[0] : raw.examen_admision
 
-      const mapped = fichasData.map((f: any) => {
-        const persona = personasMap.get(f.id_persona)
         return {
-          id_ficha: f.id_ficha,
-          id_persona: f.id_persona || '',
-          id_carrera: f.id_carrera || '',
-          fecha_registro: f.fecha_registro,
-          estado: f.estado,
+          id_ficha: raw.id_ficha,
+          id_alumno: raw.id_alumno,
+          id_persona: alumno?.id_persona || '',
+          id_carrera: raw.id_carrera,
+          fecha_registro: raw.fecha_registro,
+          estado: raw.estado,
           persona: {
             nombre: persona?.nombre || '',
-            apellido_paterno: persona?.apellido_paterno,
-            apellido_materno: persona?.apellido_materno,
-            curp: curpMap.get(f.id_persona) || '',
-            telefono: persona?.telefono,
-            fecha_nacimiento: persona?.fecha_nacimiento,
-            sexo: persona?.sexo,
+            apellido_paterno: persona?.apellido_paterno ?? null,
+            apellido_materno: persona?.apellido_materno ?? null,
+            curp: alumno?.curp || '',
+            telefono: persona?.telefono ?? null,
+            fecha_nacimiento: persona?.fecha_nacimiento ?? null,
+            sexo: alumno?.sexo ?? null,
+            correo: alumno?.correo ?? null,
           },
-          carrera: carrerasMap.get(f.id_carrera) || { nombre: '' },
-          examen_admision: examenesMap.get(f.id_ficha) || null,
+          carrera: raw.carrera ?? { nombre: '' },
+          examen_admision: examen ? { resultado: examen.resultado ?? null, calificacion: examen.calificacion ?? null } : null,
         }
       })
 
@@ -87,14 +126,33 @@ export default function FichasAdmision() {
   }
 
   const updateStatus = async (id: string, newStatus: string) => {
+    type RawFichaDetail = {
+      id_ficha: string
+      estado: FichaStatus
+      alumno: {
+        correo: string | null
+        persona: {
+          nombre: string | null
+          apellido_paterno: string | null
+          apellido_materno: string | null
+        } | null
+      } | null
+    }
+
     // Get ficha details first
     const { data: fichaData, error: fichaError } = await supabase
       .from('ficha')
       .select(`
         id_ficha,
-        id_persona,
         estado,
-        persona:persona (nombre, apellido_paterno, apellido_materno)
+        alumno:alumno (
+          correo,
+          persona:persona (
+            nombre,
+            apellido_paterno,
+            apellido_materno
+          )
+        )
       `)
       .eq('id_ficha', id)
       .single()
@@ -115,23 +173,16 @@ export default function FichasAdmision() {
       return
     }
 
-    // Get email from documento table
-    const { data: emailData } = await supabase
-      .from('documento')
-      .select('url_archivo')
-      .eq('id_persona', fichaData.id_persona)
-      .eq('tipo', 'contact_email')
-      .maybeSingle()
-
-    const email = emailData?.url_archivo
+    const typedFicha = fichaData as RawFichaDetail
+    const email = typedFicha.alumno?.correo || null
     if (!email) {
-      console.log('No email found for persona')
+      console.log('No email found for alumno')
       loadFichas()
       return
     }
 
     // Send email notification
-    const persona = fichaData.persona as any
+    const persona = typedFicha.alumno?.persona
     const fullName = `${persona?.nombre || ''} ${persona?.apellido_paterno || ''} ${persona?.apellido_materno || ''}`.trim()
     
     const statusMessages: Record<string, { subject: string; message: string }> = {
@@ -164,7 +215,7 @@ export default function FichasAdmision() {
       try {
         await supabase.functions.invoke('resend-email', {
           body: {
-            to: 'teddiazdiaz019@gmail.com',
+            to: email,
             subject: statusInfo.subject,
             html,
           },
@@ -187,6 +238,11 @@ export default function FichasAdmision() {
     const matchesStatus = !statusFilter || f.estado === statusFilter
     return matchesSearch && matchesStatus
   })
+
+  const statusCounts: Record<string, number> = fichas.reduce((acc, ficha) => {
+    acc[ficha.estado] = (acc[ficha.estado] ?? 0) + 1
+    return acc
+  }, {} as Record<string, number>)
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -217,17 +273,30 @@ export default function FichasAdmision() {
               className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D7B43] focus:border-transparent transition"
             />
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D7B43] focus:border-transparent transition bg-white"
-          >
-            <option value="">Todos los estados</option>
-            <option value="registrado">Registrado</option>
-            <option value="en_revision">En Revisión</option>
-            <option value="aprobada">Aprobada</option>
-            <option value="rechazada">Rechazada</option>
-          </select>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-8">
+          {FILTERS.map((filter) => {
+            const isActive = statusFilter === filter.value
+            const baseClasses = 'px-4 py-2 rounded-full text-sm font-medium border transition-colors'
+            const activeClasses = 'bg-[#1D7B43] border-[#1D7B43] text-white shadow-sm'
+            const inactiveClasses = 'border-gray-200 text-gray-600 hover:border-[#1D7B43] hover:text-[#1D7B43]'
+            const count = filter.value ? statusCounts[filter.value] || 0 : fichas.length
+
+            return (
+              <button
+                key={filter.value || 'all'}
+                type="button"
+                onClick={() => setStatusFilter(filter.value)}
+                className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses}`}
+              >
+                {filter.label}
+                <span className={`ml-2 inline-flex min-w-[1.75rem] justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
         </div>
 
         {loading ? (

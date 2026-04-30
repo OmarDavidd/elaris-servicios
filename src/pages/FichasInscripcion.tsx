@@ -13,74 +13,104 @@ export default function FichasInscripcion() {
     loadFichas()
   }, [])
 
+  type RawInscripcion = {
+    id: string
+    id_alumno: string
+    curp: string
+    folio_acta_nacimiento: string
+    registrar_responsable: boolean
+    id_responsable: string | null
+    alumno: {
+      id_persona: string
+      sexo: string | null
+      correo: string | null
+      persona: {
+        nombre: string
+        apellido_paterno: string | null
+        apellido_materno: string | null
+        telefono: string | null
+      } | null
+    } | null
+    inscripcion_escolaridad: {
+      nivel: string
+      nombre_institucion: string
+      promedio: number
+      folio_certificado: string
+    }[] | null
+  }
+
   const loadFichas = async () => {
     try {
       setLoading(true)
-      
-      // 1. Get inscripciones first (without embedding persona)
-      const { data: inscripcionesData, error } = await supabase
+      const { data, error } = await supabase
         .from('inscripciones')
-        .select('id, id_persona, curp, folio_acta_nacimiento, registrar_responsable')
-        .order('id', { ascending: false })
+        .select(`
+          id,
+          id_alumno,
+          curp,
+          folio_acta_nacimiento,
+          registrar_responsable,
+          id_responsable,
+          alumno:alumno (
+            id_persona,
+            sexo,
+            correo,
+            persona:persona (
+              nombre,
+              apellido_paterno,
+              apellido_materno,
+              telefono
+            )
+          ),
+          inscripcion_escolaridad:inscripcion_escolaridad (
+            nivel,
+            nombre_institucion,
+            promedio,
+            folio_certificado
+          )
+        `)
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.error('Error loading inscripciones:', error.message)
-        setLoading(false)
-        return
-      }
-
-      if (!inscripcionesData || inscripcionesData.length === 0) {
         setFichas([])
-        setLoading(false)
         return
       }
 
-      // 2. Get unique persona IDs
-      const personaIds = [...new Set(inscripcionesData.map(f => f.id_persona).filter(Boolean))]
-
-      // 3. Get all related data in parallel
-      const [
-        { data: personasData, error: personasError },
-        { data: inscripcionEscolaridadData, error: escolaridadError },
-      ] = await Promise.all([
-        supabase.from('persona').select('id_persona, nombre, apellido_paterno, apellido_materno, telefono').in('id_persona', personaIds),
-        supabase.from('inscripcion_escolaridad').select('*').in('id_inscripcion', inscripcionesData.map(f => f.id)),
-      ])
-
-      if (personasError) {
-        console.error('Error loading personas:', personasError.message)
-      }
-      if (escolaridadError) {
-        console.error('Error loading escolaridad:', escolaridadError.message)
+      if (!data || data.length === 0) {
+        setFichas([])
+        return
       }
 
-      // 4. Create maps
-      const personasMap = new Map((personasData || []).map(p => [p.id_persona, p]))
-      const escolaridadMap = new Map()
-      
-      ;(inscripcionEscolaridadData || []).forEach((e: any) => {
-        if (!escolaridadMap.has(e.id_inscripcion)) {
-          escolaridadMap.set(e.id_inscripcion, [])
-        }
-        escolaridadMap.get(e.id_inscripcion).push(e)
-      })
+      const mapped: FichaInscripcion[] = data.map((raw: RawInscripcion) => {
+        const alumno = raw.alumno
+        const persona = alumno?.persona
+        const escolaridad = Array.isArray(raw.inscripcion_escolaridad) ? raw.inscripcion_escolaridad : []
 
-      // 5. Map data
-      const mapped = inscripcionesData.map((f: any) => {
-        const persona = personasMap.get(f.id_persona)
         return {
-          id: f.id,
-          id_persona: f.id_persona || '',
-          curp: f.curp,
-          folio_acta_nacimiento: f.folio_acta_nacimiento,
-          registrar_responsable: f.registrar_responsable,
-          persona: persona ? {
-            nombre: persona.nombre,
-            apellido_paterno: persona.apellido_paterno,
-            apellido_materno: persona.apellido_materno,
-            telefono: persona.telefono,
-          } : null,
-          escolaridad: escolaridadMap.get(f.id) || [],
+          id: raw.id,
+          id_alumno: raw.id_alumno,
+          id_persona: alumno?.id_persona || '',
+          id_responsable: raw.id_responsable ?? null,
+          curp: raw.curp,
+          folio_acta_nacimiento: raw.folio_acta_nacimiento,
+          registrar_responsable: raw.registrar_responsable,
+          persona: persona
+            ? {
+              nombre: persona.nombre,
+              apellido_paterno: persona.apellido_paterno ?? null,
+              apellido_materno: persona.apellido_materno ?? null,
+              telefono: persona.telefono ?? null,
+              correo: alumno?.correo ?? null,
+              sexo: alumno?.sexo ?? null,
+            }
+            : null,
+          escolaridad: escolaridad.map((item) => ({
+            nivel: item.nivel,
+            nombre_institucion: item.nombre_institucion,
+            promedio: item.promedio,
+            folio_certificado: item.folio_certificado,
+          })),
         }
       })
 
@@ -151,7 +181,7 @@ export default function FichasInscripcion() {
                     <tr key={f.id} className="border-b border-gray-50 hover:bg-green-50/30 transition">
                       <td className="p-4">
                         <div className="font-medium text-gray-900">{f.persona?.nombre} {f.persona?.apellido_paterno}</div>
-                        <div className="text-xs text-gray-500">{f.persona?.apellido_materno}</div>
+                       <div className="text-xs text-gray-500">{f.persona?.apellido_materno}</div>
                       </td>
                       <td className="p-4 text-gray-600 font-mono text-xs">{f.curp}</td>
                       <td className="p-4 text-gray-700">{f.folio_acta_nacimiento}</td>

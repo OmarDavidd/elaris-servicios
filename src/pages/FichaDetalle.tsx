@@ -19,99 +19,249 @@ export default function FichaDetalle() {
     if (id) loadDetalle()
   }, [id, type, inscripcionId])
 
+  type RawAlumno = {
+    id_alumno: string
+    id_persona: string
+    curp: string
+    sexo: string | null
+    correo: string | null
+    persona: {
+      id_persona: string
+      nombre: string
+      apellido_paterno: string | null
+      apellido_materno: string | null
+      fecha_nacimiento: string | null
+      telefono: string | null
+    } | null
+  }
+
+  type RawResponsable = {
+    parentesco: string | null
+    persona: {
+      nombre: string
+      apellido_paterno: string | null
+      apellido_materno: string | null
+      telefono: string | null
+    } | null
+  }
+
+  type InscripcionRecord = {
+    id: string
+    id_alumno: string
+    curp: string
+    folio_acta_nacimiento: string
+    registrar_responsable: boolean
+    id_responsable: string | null
+  }
+
+  type DocumentoRecord = {
+    id_documento: string
+    id_alumno: string
+    tipo: string
+    url_archivo: string
+  }
+
+  type EscolaridadRecord = {
+    id_escolaridad: string
+    promedio: number
+    anio_egreso: number | null
+    escuela: { nombre: string | null; tipo: string | null } | null
+  }
+
+  type InscripcionEscolaridadRecord = {
+    nivel: string
+    nombre_institucion: string
+    promedio: number
+    folio_certificado: string
+    lugar_expedicion: string
+    tipo_institucion: string
+    url_certificado: string | null
+  }
+
+  type EnfermedadRecord = { enfermedad: { nombre: string | null } | null }
+  type LenguaRecord = { lengua: { nombre: string | null } | null }
+  type InfoMedicaRecord = { tipo_sangre: string | null; alergias: string | null }
+
   const loadDetalle = async () => {
     try {
       setError('')
       setLoading(true)
 
-      let personaId = null
-      let inscripcionData = null
+      let alumnoId = null
+      let inscripcionData: InscripcionRecord | null = null
+      let responsableId: string | null = null
+      let currentInscripcionId: string | null = inscripcionId
 
       // When type=inscripcion, the `id` param is the INSCRIPCION id
       if (type === 'inscripcion' && id) {
         const { data: inscData } = await supabase
           .from('inscripciones')
-          .select('id_persona, curp, folio_acta_nacimiento, registrar_responsable')
+          .select('id, id_alumno, curp, folio_acta_nacimiento, registrar_responsable, id_responsable')
           .eq('id', id)
           .maybeSingle()
         
-        if (inscData?.id_persona) {
-          personaId = inscData.id_persona
-          inscripcionData = inscData
+        if (inscData?.id_alumno) {
+          alumnoId = inscData.id_alumno
+          inscripcionData = inscData as InscripcionRecord
+          responsableId = inscData.id_responsable ?? null
+          currentInscripcionId = inscData.id
         }
       } else {
         // Check if it's a ficha id (from admision)
         const { data: fichaData } = await supabase
           .from('ficha')
-          .select('id_persona')
+          .select('id_alumno')
           .eq('id_ficha', id)
           .maybeSingle()
 
-        if (fichaData?.id_persona) {
-          personaId = fichaData.id_persona
-        } else {
-          // Maybe it's already a persona id
-          personaId = id
+        if (fichaData?.id_alumno) {
+          alumnoId = fichaData.id_alumno
         }
       }
 
-      if (!personaId) {
+      if (!alumnoId) {
         setError('No se encontró la información')
         setLoading(false)
         return
       }
 
-      // Load all data in parallel
+      const { data: alumnoData, error: alumnoError } = await supabase
+        .from('alumno')
+        .select(`
+          id_alumno,
+          id_persona,
+          curp,
+          sexo,
+          correo,
+          persona:persona (
+            id_persona,
+            nombre,
+            apellido_paterno,
+            apellido_materno,
+            fecha_nacimiento,
+            telefono
+          )
+        `)
+        .eq('id_alumno', alumnoId)
+        .maybeSingle()
+
+      if (alumnoError || !alumnoData) {
+        setError('No se encontró la información del alumno')
+        setLoading(false)
+        return
+      }
+
       const [
-        { data: personaData, error: personaError },
-        { data: docsData },
-        { data: curpData },
-        { data: emailData },
-        { data: medicaData },
-        { data: enfermedadesData },
-        { data: lenguasData },
-        { data: responsableData },
-        { data: escolaridadData },
-        { data: inscripcionEscolaridad },
+        documentosResponse,
+        infoMedicaResponse,
+        enfermedadesResponse,
+        lenguasResponse,
+        escolaridadResponse,
+        inscripcionEscolaridadResponse,
       ] = await Promise.all([
-        supabase.from('persona').select('*').eq('id_persona', personaId).maybeSingle(),
-        supabase.from('documento').select('*').eq('id_persona', personaId),
-        supabase.from('documento').select('url_archivo').eq('id_persona', personaId).eq('tipo', 'curp_text').maybeSingle(),
-        supabase.from('documento').select('url_archivo').eq('id_persona', personaId).eq('tipo', 'contact_email').maybeSingle(),
-        supabase.from('info_medica').select('*').eq('id_persona', personaId).maybeSingle(),
-        supabase.from('persona_enfermedad').select('enfermedad(nombre)').eq('id_persona', personaId),
-        supabase.from('persona_lengua').select('lengua(nombre)').eq('id_persona', personaId),
-        supabase.from('responsable').select('*').eq('id_persona', personaId).maybeSingle(),
-        supabase.from('escolaridad').select('*, escuela(*)').eq('id_persona', personaId),
-        supabase.from('inscripcion_escolaridad').select('*').eq('id_inscripcion', inscripcionId || ''),
+        supabase.from('documento').select('id_documento, id_alumno, tipo, url_archivo').eq('id_alumno', alumnoId),
+        supabase.from('info_medica').select('tipo_sangre, alergias').eq('id_alumno', alumnoId).maybeSingle(),
+        supabase.from('alumno_enfermedad').select('enfermedad(nombre)').eq('id_alumno', alumnoId),
+        supabase.from('alumno_lengua').select('lengua(nombre)').eq('id_alumno', alumnoId),
+        supabase.from('escolaridad').select('id_escolaridad, promedio, anio_egreso, escuela:escuela (nombre, tipo)').eq('id_alumno', alumnoId),
+        currentInscripcionId
+          ? supabase
+              .from('inscripcion_escolaridad')
+              .select('nivel, nombre_institucion, promedio, folio_certificado, lugar_expedicion, tipo_institucion, url_certificado')
+              .eq('id_inscripcion', currentInscripcionId)
+          : Promise.resolve({ data: [] as InscripcionEscolaridadRecord[], error: null }),
       ])
 
-      if (personaError || !personaData) {
-        setError('No se encontró la información')
-        setLoading(false)
-        return
-      }
+      const documentos = (documentosResponse.data ?? []) as DocumentoRecord[]
+      const infoMedica = (infoMedicaResponse.data as InfoMedicaRecord | null) ?? null
+      const enfermedades = (enfermedadesResponse.data ?? []) as EnfermedadRecord[]
+      const lenguas = (lenguasResponse.data ?? []) as LenguaRecord[]
+      const escolaridades = (escolaridadResponse.data ?? []) as EscolaridadRecord[]
+      const inscripcionEscolaridad = (inscripcionEscolaridadResponse.data ?? []) as InscripcionEscolaridadRecord[]
+
+      const responsableDataPromise = responsableId
+        ? supabase
+            .from('responsable')
+            .select(`
+              parentesco,
+              persona:persona (
+                nombre,
+                apellido_paterno,
+                apellido_materno,
+                telefono
+              )
+            `)
+            .eq('id_responsable', responsableId)
+            .maybeSingle()
+        : Promise.resolve({ data: null as RawResponsable | null, error: null })
+
+      const { data: responsableData } = await responsableDataPromise
 
       setPersona({
-        id_persona: personaData.id_persona || '',
-        nombre: personaData.nombre || '',
-        apellido_paterno: personaData.apellido_paterno,
-        apellido_materno: personaData.apellido_materno,
-        fecha_nacimiento: personaData.fecha_nacimiento,
-        sexo: personaData.sexo,
-        telefono: personaData.telefono,
-        curp: (curpData as any)?.url_archivo || inscripcionData?.curp || '',
-        email: (emailData as any)?.url_archivo || null,
-        info_medica: medicaData as any || null,
-        enfermedades: (enfermedadesData as any)?.map((e: any) => e.enfermedad.nombre) || [],
-        lenguas: (lenguasData as any)?.map((l: any) => l.lengua.nombre) || [],
-        responsable: responsableData as any || null,
-        escolaridad: (escolaridadData as any) || [],
-        inscripcion_escolaridad: (inscripcionEscolaridad as any) || [],
-        inscripcionData: inscripcionData,
+        id_alumno: alumnoData.id_alumno,
+        id_persona: alumnoData.id_persona,
+        nombre: alumnoData.persona?.nombre || '',
+        apellido_paterno: alumnoData.persona?.apellido_paterno ?? null,
+        apellido_materno: alumnoData.persona?.apellido_materno ?? null,
+        fecha_nacimiento: alumnoData.persona?.fecha_nacimiento ?? null,
+        sexo: alumnoData.sexo ?? null,
+        telefono: alumnoData.persona?.telefono ?? null,
+        curp: alumnoData.curp || inscripcionData?.curp || '',
+        email: alumnoData.correo ?? null,
+        info_medica: infoMedica
+          ? {
+            tipo_sangre: infoMedica.tipo_sangre ?? null,
+            alergias: infoMedica.alergias ?? null,
+          }
+          : null,
+        enfermedades: enfermedades
+          .map((registro) => registro.enfermedad?.nombre)
+          .filter((nombre): nombre is string => Boolean(nombre)),
+        lenguas: lenguas
+          .map((registro) => registro.lengua?.nombre)
+          .filter((nombre): nombre is string => Boolean(nombre)),
+        responsable: responsableData
+          ? {
+            nombre: `${responsableData.persona?.nombre || ''} ${responsableData.persona?.apellido_paterno || ''} ${responsableData.persona?.apellido_materno || ''}`.trim(),
+            telefono: responsableData.persona?.telefono ?? null,
+            parentesco: responsableData.parentesco,
+          }
+          : null,
+        escolaridad: escolaridades.map((escolaridad) => ({
+          id_escolaridad: escolaridad.id_escolaridad,
+          promedio: escolaridad.promedio,
+          anio_egreso: escolaridad.anio_egreso ?? null,
+          escuela: {
+            nombre: escolaridad.escuela?.nombre || '',
+            tipo: escolaridad.escuela?.tipo || '',
+          },
+        })),
+        inscripcion_escolaridad: inscripcionEscolaridad.map((item) => ({
+          nivel: item.nivel,
+          nombre_institucion: item.nombre_institucion,
+          promedio: item.promedio,
+          folio_certificado: item.folio_certificado,
+          lugar_expedicion: item.lugar_expedicion,
+          tipo_institucion: item.tipo_institucion,
+          url_certificado: item.url_certificado ?? null,
+        })),
+        inscripcionData: inscripcionData
+          ? {
+            id: inscripcionData.id,
+            curp: inscripcionData.curp,
+            folio_acta_nacimiento: inscripcionData.folio_acta_nacimiento,
+            registrar_responsable: inscripcionData.registrar_responsable,
+            id_responsable: inscripcionData.id_responsable ?? null,
+          }
+          : null,
       })
 
-      setDocumentos((docsData as any) || [])
+      setDocumentos(documentos.map((doc) => ({
+        id_documento: doc.id_documento,
+        id_alumno: doc.id_alumno,
+        tipo: doc.tipo,
+        url_archivo: doc.url_archivo,
+      })))
     } catch (err: any) {
       setError(err.message || 'Error al cargar')
     } finally {
@@ -244,7 +394,7 @@ export default function FichaDetalle() {
               Escolaridad de Inscripción
             </h3>
             <div className="space-y-4">
-              {persona.inscripcion_escolaridad.map((e: any, i: number) => (
+              {persona.inscripcion_escolaridad.map((e, i) => (
                 <div key={i} className="border border-gray-100 rounded-xl p-4">
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div>
