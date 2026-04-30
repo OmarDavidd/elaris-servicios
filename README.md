@@ -1,7 +1,7 @@
 # Elaris - Servicios Escolares
 
 Sistema de gestión de fichas para el departamento de Servicios Escolares de la universidad NovaUniversitas.
-
+##
 ## Tecnologías
 
 - **Frontend:** React 18 + TypeScript
